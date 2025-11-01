@@ -7,9 +7,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// Простые учетные данные (замени на свои!)
+// Простые учетные данные
 const ADMIN_USERNAME = 'admin';
-const ADMIN_PASSWORD = 'password123'; // Смени этот пароль!
+const ADMIN_PASSWORD = 'password123';
 
 // Хранилище данных
 let managerOnline = false;
@@ -106,7 +106,7 @@ app.post('/api/manager-message', requireAuth, (req, res) => {
 });
 
 // API для получения сообщений (требует авторизации)
-app.get('/api/messages/:clientId', requireAuth, (req, res) => {
+app.get('/api/messages/:clientId', (req, res) => {
     const clientId = req.params.clientId;
     res.json(messages[clientId] || []);
 });
@@ -119,11 +119,28 @@ app.get('/api/clients', requireAuth, (req, res) => {
         return {
             clientId: clientId,
             lastActivity: lastMessage ? lastMessage.timestamp : new Date().toISOString(),
-            messageCount: clientMessages.length
+            messageCount: clientMessages.length,
+            lastMessage: lastMessage ? lastMessage.message : 'Нет сообщений'
         };
     });
     
+    // Сортируем по последней активности (новые сверху)
+    clientList.sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity));
+    
     res.json(clientList);
+});
+
+// Удаление чата (требует авторизации)
+app.delete('/api/chat/:clientId', requireAuth, (req, res) => {
+    const clientId = req.params.clientId;
+    
+    if (messages[clientId]) {
+        delete messages[clientId];
+        console.log(`Чат с клиентом ${clientId} удален`);
+        res.json({ success: true, message: 'Чат удален' });
+    } else {
+        res.status(404).json({ success: false, message: 'Чат не найден' });
+    }
 });
 
 // Отдаем админку
