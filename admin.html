@@ -10,10 +10,10 @@
         .online { background: #d4edda; color: #155724; border: 2px solid #28a745; }
         .offline { background: #f8d7da; color: #721c24; border: 2px solid #dc3545; }
         .clients-list { margin: 20px 0; }
-        .client { padding: 10px; border: 1px solid #ddd; margin: 5px 0; cursor: pointer; border-radius: 5px; }
+        .client { padding: 10px; border: 1px solid #ddd; margin: 5px 0; cursor: pointer; border-radius: 5px; background: white; }
         .client:hover { background: #f8f9fa; }
         .client.active { background: #007bff; color: white; }
-        .chat-area { border: 1px solid #ddd; padding: 10px; height: 400px; overflow-y: auto; margin: 10px 0; border-radius: 5px; }
+        .chat-area { border: 1px solid #ddd; padding: 10px; height: 400px; overflow-y: auto; margin: 10px 0; border-radius: 5px; background: white; }
         .message { margin: 5px 0; padding: 8px; border-radius: 5px; max-width: 80%; }
         .client-message { background: #f1f1f1; align-self: flex-start; }
         .manager-message { background: #007bff; color: white; align-self: flex-end; margin-left: auto; }
@@ -33,6 +33,17 @@
         .logout-btn { background: #6c757d; color: white; float: right; }
         .error { color: #dc3545; margin: 10px 0; }
         .success { color: #28a745; margin: 10px 0; }
+        .delete-chat-btn { 
+            background: #dc3545; 
+            color: white; 
+            border: none; 
+            border-radius: 3px; 
+            padding: 5px 10px; 
+            cursor: pointer; 
+            margin-left: 10px;
+            font-size: 12px;
+        }
+        .client-info { flex: 1; }
     </style>
 </head>
 <body>
@@ -214,16 +225,77 @@
                     if (client.clientId === currentClientId) {
                         clientEl.classList.add('active');
                     }
+                    
                     clientEl.innerHTML = `
-                        <strong>👤 Клиент:</strong> ${client.clientId}<br>
-                        <small>📝 Сообщений: ${client.messageCount}</small><br>
-                        <small>⏰ Активен: ${new Date(client.lastActivity).toLocaleString()}</small>
+                        <div style="display: flex; justify-content: space-between; align-items: start;">
+                            <div class="client-info">
+                                <strong>👤 Клиент:</strong> ${client.clientId}<br>
+                                <small>📝 Сообщений: ${client.messageCount}</small><br>
+                                <small>⏰ Активен: ${new Date(client.lastActivity).toLocaleString()}</small>
+                                <br>
+                                <small>💬 ${client.lastMessage.length > 50 ? client.lastMessage.substring(0, 50) + '...' : client.lastMessage}</small>
+                            </div>
+                            <button class="delete-chat-btn" data-clientid="${client.clientId}">
+                                🗑️ Удалить
+                            </button>
+                        </div>
                     `;
+                    
                     clientEl.onclick = () => selectClient(client.clientId);
                     container.appendChild(clientEl);
                 });
+                
+                // Инициализируем кнопки удаления
+                initDeleteButtons();
+                
             } catch (error) {
                 console.error('Ошибка загрузки клиентов:', error);
+            }
+        }
+
+        // Инициализация кнопок удаления
+        function initDeleteButtons() {
+            document.querySelectorAll('.delete-chat-btn').forEach(btn => {
+                btn.onclick = async (e) => {
+                    e.stopPropagation(); // Чтобы не выбирался чат при нажатии
+                    const clientId = btn.getAttribute('data-clientid');
+                    if (confirm(`Удалить чат с клиентом ${clientId}? Это действие нельзя отменить.`)) {
+                        await deleteChat(clientId);
+                    }
+                };
+            });
+        }
+
+        // Удаление чата
+        async function deleteChat(clientId) {
+            try {
+                const response = await fetch(`${API_URL}/api/chat/${clientId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.status === 401) {
+                    logout();
+                    return;
+                }
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Если удален текущий чат - закрываем его
+                    if (currentClientId === clientId) {
+                        document.getElementById('chat-container').style.display = 'none';
+                        currentClientId = null;
+                    }
+                    
+                    // Перезагружаем список клиентов
+                    loadClients();
+                } else {
+                    alert('Ошибка удаления чата: ' + data.message);
+                }
+            } catch (error) {
+                console.error('Ошибка удаления чата:', error);
+                alert('Ошибка удаления чата');
             }
         }
 
@@ -237,7 +309,7 @@
             document.querySelectorAll('.client').forEach(el => {
                 el.classList.remove('active');
             });
-            event.target.classList.add('active');
+            event.target.closest('.client').classList.add('active');
         }
 
         async function loadMessages() {
@@ -260,7 +332,7 @@
                 messages.forEach(msg => {
                     const messageEl = document.createElement('div');
                     messageEl.className = `message ${msg.sender === 'client' ? 'client-message' : 'manager-message'}`;
-                    messageEl.textContent = msg.message;
+                    messageEl.textContent = `${msg.sender === 'client' ? 'Клиент' : 'Вы'}: ${msg.message}`;
                     container.appendChild(messageEl);
                 });
                 
