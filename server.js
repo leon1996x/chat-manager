@@ -105,7 +105,7 @@ app.post('/api/manager-message', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
-// API для получения сообщений (требует авторизации)
+// API для получения сообщений
 app.get('/api/messages/:clientId', (req, res) => {
     const clientId = req.params.clientId;
     res.json(messages[clientId] || []);
