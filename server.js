@@ -8,8 +8,8 @@ app.use(express.json());
 app.use(express.static('public'));
 
 // Настройки Telegram
-const TELEGRAM_BOT_TOKEN = '7860478839:AAGWbBsKoaDhOBkLLwCvIDasfqRTqGk0mo4';
-const TELEGRAM_CHAT_ID = '7925004736';
+const TELEGRAM_BOT_TOKEN = '8546543199:AAFBSDOa2D27wk9Nsmg8YF8BTWu6U4_8aJo';
+const TELEGRAM_CHAT_ID = '519789698';
 
 // Простые учетные данные
 const ADMIN_USERNAME = 'admin';
