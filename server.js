@@ -397,3 +397,30 @@ app.listen(PORT, () => {
     
     setupWebhook();
 });
+// API для отправки сообщения от клиента - ОБНОВЛЯЕМ
+app.post('/api/message', (req, res) => {
+    const { clientId, message, userName, userPhone } = req.body;
+    
+    if (!messages[clientId]) {
+        messages[clientId] = [];
+    }
+    
+    messages[clientId].push({
+        sender: 'client',
+        message: message,
+        timestamp: new Date().toISOString()
+    });
+    
+    console.log(`Сообщение от ${clientId}: ${message}`);
+    
+    // Сохраняем как активного клиента
+    activeClients[clientId] = new Date().toISOString();
+    
+    // Отправляем уведомление в Telegram
+    const clientName = userName || clientId;
+    const phone = userPhone || 'телефон не указан';
+    const telegramMessage = `💬 НОВОЕ СООБЩЕНИЕ\n\n👤 ${clientName}\n📞 ${phone}\n\n📝 Сообщение:\n${message}\n\n💡 Ответьте на это сообщение или используйте /clients для выбора клиента`;
+    sendToTelegram(telegramMessage);
+    
+    res.json({ success: true });
+});
