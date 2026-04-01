@@ -20,7 +20,7 @@ let managerOnline = false;
 let messages = {};
 let sessions = {};
 let activeClients = {};
-let telegramSessions = {}; // Сессии для Telegram
+let telegramSessions = {};
 
 // Middleware для проверки авторизации
 function requireAuth(req, res, next) {
@@ -65,36 +65,26 @@ function sendManagerMessageToClient(clientId, message) {
 app.post('/webhook/telegram', express.json(), (req, res) => {
     const update = req.body;
     
-    // Проверяем, что это текстовое сообщение от менеджера
     if (update.message && update.message.text && update.message.chat.id == TELEGRAM_CHAT_ID) {
         const managerMessage = update.message.text;
-        const messageId = update.message.message_id;
         
         console.log('Сообщение от менеджера в Telegram:', managerMessage);
         
-        // Обработка команд
         if (managerMessage.startsWith('/')) {
             handleTelegramCommand(managerMessage, update.message.chat.id);
             return res.json({ ok: true });
         }
         
-        // Проверяем, есть ли активная сессия с клиентом
         const currentSession = telegramSessions[TELEGRAM_CHAT_ID];
         
         if (currentSession && currentSession.activeClient) {
-            // Отправляем сообщение выбранному клиенту
             const clientId = currentSession.activeClient;
             sendManagerMessageToClient(clientId, managerMessage);
             
-            // Уведомляем менеджера
-            const clientMessages = messages[clientId] || [];
             const clientInfo = getClientInfo(clientId);
-            
             const replyMessage = `✅ Сообщение отправлено клиенту:\n${clientInfo}\n\n💬 Ваш ответ: ${managerMessage}`;
             sendToTelegram(replyMessage);
-            
         } else {
-            // Нет активной сессии - показываем список клиентов
             showClientsList(update.message.chat.id);
         }
     }
@@ -117,8 +107,7 @@ function handleTelegramCommand(command, chatId) {
                 `💡 Чтобы ответить клиенту:\n` +
                 `1. Нажмите /clients\n` +
                 `2. Выберите клиента (например, /select_client123)\n` +
-                `3. Пишите сообщения - они будут отправляться выбранному клиенту\n\n` +
-                `🔄 Чтобы сменить клиента - снова используйте /clients`,
+                `3. Пишите сообщения - они будут отправляться выбранному клиенту`,
                 chatId
             );
             break;
@@ -127,7 +116,7 @@ function handleTelegramCommand(command, chatId) {
                 const clientId = command.replace('/select_', '');
                 selectClientForChat(clientId, chatId);
             } else {
-                sendToTelegram('❌ Неизвестная команда. Используйте /help для справки', chatId);
+                sendToTelegram('❌ Неизвестная команда. Используйте /help', chatId);
             }
     }
 }
@@ -139,7 +128,7 @@ function showClientsList(chatId) {
             const clientMessages = messages[clientId] || [];
             const lastMessage = clientMessages[clientMessages.length - 1];
             const lastActivity = new Date(activeClients[clientId]);
-            const timeAgo = Math.floor((new Date() - lastActivity) / 60000); // минут назад
+            const timeAgo = Math.floor((new Date() - lastActivity) / 60000);
             
             return {
                 clientId,
@@ -150,7 +139,7 @@ function showClientsList(chatId) {
             };
         })
         .sort((a, b) => new Date(b.lastActivity) - new Date(a.lastActivity))
-        .slice(0, 10); // Показываем только 10 последних
+        .slice(0, 10);
 
     if (activeList.length === 0) {
         sendToTelegram('📭 Нет активных клиентов', chatId);
@@ -168,12 +157,10 @@ function showClientsList(chatId) {
         message += `${index + 1}. ${clientInfo}\n`;
         message += `   📝 Сообщений: ${client.messageCount}\n`;
         message += `   ⏰ Активен: ${timeText}\n`;
-        message += `   💬 Последнее: ${client.lastMessage.substring(0, 50)}${client.lastMessage.length > 50 ? '...' : ''}\n`;
         message += `   🔗 Выбрать: /select_${client.clientId}\n\n`;
     });
 
-    message += `💡 Нажмите на команду /select_... чтобы выбрать клиента для общения`;
-
+    message += `💡 Нажмите на команду /select_... чтобы выбрать клиента`;
     sendToTelegram(message, chatId);
 }
 
@@ -184,7 +171,6 @@ function selectClientForChat(clientId, chatId) {
         return;
     }
 
-    // Сохраняем сессию
     if (!telegramSessions[chatId]) {
         telegramSessions[chatId] = {};
     }
@@ -197,7 +183,6 @@ function selectClientForChat(clientId, chatId) {
     let message = `✅ Выбран клиент:\n${clientInfo}\n\n`;
     message += `📋 История сообщений:\n`;
     
-    // Показываем последние 5 сообщений
     const recentMessages = clientMessages.slice(-5);
     recentMessages.forEach(msg => {
         const sender = msg.sender === 'client' ? '👤 Клиент' : '💼 Вы';
@@ -205,9 +190,7 @@ function selectClientForChat(clientId, chatId) {
         message += `\n${sender} (${time}):\n${msg.message}\n`;
     });
     
-    message += `\n💬 Теперь все ваши сообщения будут отправляться этому клиенту.\n`;
-    message += `🔄 Чтобы сменить клиента - отправьте /clients`;
-
+    message += `\n💬 Теперь все ваши сообщения будут отправляться этому клиенту.`;
     sendToTelegram(message, chatId);
 }
 
@@ -217,7 +200,6 @@ function getClientInfo(clientId) {
     const firstMessage = clientMessages.find(msg => msg.sender === 'client');
     
     if (firstMessage) {
-        // Пытаемся извлечь имя и телефон из первого сообщения
         const lines = firstMessage.message.split('\n');
         const nameLine = lines.find(line => line.includes('Имя:'));
         const phoneLine = lines.find(line => line.includes('Телефон:'));
@@ -232,7 +214,45 @@ function getClientInfo(clientId) {
     return `👤 Клиент: ${clientId}`;
 }
 
-// Логин
+// ========== НОВЫЙ ЭНДПОИНТ ДЛЯ ЗАЯВКИ ==========
+app.post('/api/order', async (req, res) => {
+    const { name, phone, email, interest, contactMethod } = req.body;
+    
+    const message = `📋 НОВАЯ ЗАЯВКА С САЙТА\n\nИмя: ${name}\nТелефон: ${phone}\nEmail: ${email || 'не указан'}\nИнтерес: ${interest}\nСпособ связи: ${contactMethod}\nВремя: ${new Date().toLocaleString()}`;
+    
+    await sendToTelegram(message);
+    res.json({ success: true });
+});
+
+// ========== ОБНОВЛЕННЫЙ ЭНДПОИНТ ДЛЯ СООБЩЕНИЙ ==========
+app.post('/api/message', async (req, res) => {
+    const { clientId, message, userName, userPhone } = req.body;
+    
+    if (!messages[clientId]) {
+        messages[clientId] = [];
+    }
+    
+    messages[clientId].push({
+        sender: 'client',
+        message: message,
+        timestamp: new Date().toISOString()
+    });
+    
+    console.log(`Сообщение от ${clientId}: ${message}`);
+    
+    // Сохраняем как активного клиента
+    activeClients[clientId] = new Date().toISOString();
+    
+    // Отправляем уведомление в Telegram
+    const clientName = userName || clientId;
+    const phone = userPhone || 'телефон не указан';
+    const telegramMessage = `💬 НОВОЕ СООБЩЕНИЕ\n\n👤 ${clientName}\n📞 ${phone}\n\n📝 Сообщение:\n${message}\n\n💡 Ответьте на это сообщение или используйте /clients для выбора клиента`;
+    await sendToTelegram(telegramMessage);
+    
+    res.json({ success: true });
+});
+
+// ========== ОСТАЛЬНЫЕ ЭНДПОИНТЫ ==========
 app.post('/api/login', (req, res) => {
     const { username, password } = req.body;
     
@@ -256,52 +276,21 @@ app.post('/api/login', (req, res) => {
     }
 });
 
-// Выход
 app.post('/api/logout', requireAuth, (req, res) => {
     const token = req.headers.authorization;
     delete sessions[token];
     res.json({ success: true, message: 'Успешный выход' });
 });
 
-// API для получения статуса
 app.get('/api/status', (req, res) => {
     res.json({ online: managerOnline });
 });
 
-// API для изменения статуса (требует авторизации)
 app.post('/api/status', requireAuth, (req, res) => {
     managerOnline = req.body.online;
     res.json({ success: true, online: managerOnline });
 });
 
-// API для отправки сообщения от клиента
-app.post('/api/message', (req, res) => {
-    const { clientId, message } = req.body;
-    
-    if (!messages[clientId]) {
-        messages[clientId] = [];
-    }
-    
-    messages[clientId].push({
-        sender: 'client',
-        message: message,
-        timestamp: new Date().toISOString()
-    });
-    
-    console.log(`Сообщение от ${clientId}: ${message}`);
-    
-    // Сохраняем как активного клиента
-    activeClients[clientId] = new Date().toISOString();
-    
-    // Отправляем уведомление в Telegram о новом сообщении от клиента
-    const clientInfo = getClientInfo(clientId);
-    const telegramMessage = `💬 НОВОЕ СООБЩЕНИЕ\n\n${clientInfo}\n\n📝 Сообщение:\n${message}\n\n💡 Ответьте на это сообщение или используйте /clients для выбора клиента`;
-    sendToTelegram(telegramMessage);
-    
-    res.json({ success: true });
-});
-
-// API для отправки сообщения от менеджера (требует авторизации)
 app.post('/api/manager-message', requireAuth, (req, res) => {
     const { clientId, message } = req.body;
     
@@ -318,13 +307,11 @@ app.post('/api/manager-message', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
-// API для получения сообщений
 app.get('/api/messages/:clientId', (req, res) => {
     const clientId = req.params.clientId;
     res.json(messages[clientId] || []);
 });
 
-// API для получения списка клиентов (требует авторизации)
 app.get('/api/clients', requireAuth, (req, res) => {
     const clientList = Object.keys(messages).map(clientId => {
         const clientMessages = messages[clientId] || [];
@@ -341,7 +328,6 @@ app.get('/api/clients', requireAuth, (req, res) => {
     res.json(clientList);
 });
 
-// Удаление чата (требует авторизации)
 app.delete('/api/chat/:clientId', requireAuth, (req, res) => {
     const clientId = req.params.clientId;
     
@@ -357,22 +343,18 @@ app.delete('/api/chat/:clientId', requireAuth, (req, res) => {
     }
 });
 
-// Отдаем админку
 app.get('/admin', (req, res) => {
     res.sendFile(path.join(__dirname, 'admin.html'));
 });
 
-// Проверка авторизации
 app.get('/api/check-auth', requireAuth, (req, res) => {
     res.json({ success: true, username: sessions[req.headers.authorization].username });
 });
 
-// Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-// Настройка webhook при запуске
 async function setupWebhook() {
     try {
         const webhookUrl = `https://chat-manager.onrender.com/webhook/telegram`;
@@ -393,34 +375,7 @@ app.listen(PORT, () => {
     console.log(`Админка: http://localhost:${PORT}/admin`);
     console.log(`Админ логин: ${ADMIN_USERNAME}`);
     console.log(`Админ пароль: ${ADMIN_PASSWORD}`);
-    console.log(`Telegram бот настроен для чата: ${TELEGRAM_CHAT_ID}`);
+    console.log(`Telegram бот настроен`);
     
     setupWebhook();
-});
-// API для отправки сообщения от клиента - ОБНОВЛЯЕМ
-app.post('/api/message', (req, res) => {
-    const { clientId, message, userName, userPhone } = req.body;
-    
-    if (!messages[clientId]) {
-        messages[clientId] = [];
-    }
-    
-    messages[clientId].push({
-        sender: 'client',
-        message: message,
-        timestamp: new Date().toISOString()
-    });
-    
-    console.log(`Сообщение от ${clientId}: ${message}`);
-    
-    // Сохраняем как активного клиента
-    activeClients[clientId] = new Date().toISOString();
-    
-    // Отправляем уведомление в Telegram
-    const clientName = userName || clientId;
-    const phone = userPhone || 'телефон не указан';
-    const telegramMessage = `💬 НОВОЕ СООБЩЕНИЕ\n\n👤 ${clientName}\n📞 ${phone}\n\n📝 Сообщение:\n${message}\n\n💡 Ответьте на это сообщение или используйте /clients для выбора клиента`;
-    sendToTelegram(telegramMessage);
-    
-    res.json({ success: true });
 });
